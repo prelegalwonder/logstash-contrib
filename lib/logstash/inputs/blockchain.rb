@@ -21,7 +21,8 @@ class LogStash::Inputs::Blockchain < LogStash::Inputs::Base
 
   public
   def register
-    require "em-websocket-client"
+    #require "em-websocket-client"
+    require "websocket-eventmachine-client"
     if @op == 'addr_sub'
       @wsmsg = '{"op":"'+@op+'"}, "addr":"'+@bc_addr+'"}'
     else
@@ -33,33 +34,30 @@ class LogStash::Inputs::Blockchain < LogStash::Inputs::Base
   def run(output_queue)
     EM.run do
 
-      puts "URL is - #{@wsurl}"
-      puts "OP is - #{@op}"
-      puts "MSG is - #{@wsmsg}"
+      #conn = EventMachine::WebSocketClient.connect("#{@wsurl}")
+      ws = WebSocket::EventMachine::Client.connect(:uri =>"#{@wsurl}")
 
-      conn = EventMachine::WebSocketClient.connect("#{@wsurl}")
-
-      conn.callback do
-        conn.send_msg "#{@wsmsg}"
+      ws.onopen do
+        puts "Client Connected.."
+        ws.send "#{@wsmsg}"
       end
 
-      conn.errback do |e|
+      ws.onerror do |e|
         puts "Got error: #{e}"
       end
 
-      conn.stream do |msg|
+      ws.onmessage do |msg|
         @codec.decode(msg) do |event|
           decorate(event)
-          puts event
+          puts "#{event}"
           output_queue << event
-          #puts "<#{msg}>"
           if msg.data == "done"
-            conn.close_connection
+            ws.close
           end
         end
       end
 
-      conn.disconnect do
+      ws.onclose do
         puts "gone"
         EM::stop_event_loop
       end
