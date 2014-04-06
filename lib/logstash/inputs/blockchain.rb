@@ -21,7 +21,6 @@ class LogStash::Inputs::Blockchain < LogStash::Inputs::Base
 
   public
   def register
-    #require "em-websocket-client"
     require "websocket-eventmachine-client"
     if @op == 'addr_sub'
       @wsmsg = '{"op":"'+@op+'"}, "addr":"'+@bc_addr+'"}'
@@ -34,7 +33,6 @@ class LogStash::Inputs::Blockchain < LogStash::Inputs::Base
   def run(output_queue)
     EM.run do
 
-      #conn = EventMachine::WebSocketClient.connect("#{@wsurl}")
       ws = WebSocket::EventMachine::Client.connect(:uri =>"#{@wsurl}")
 
       ws.onopen do
@@ -47,13 +45,13 @@ class LogStash::Inputs::Blockchain < LogStash::Inputs::Base
       end
 
       ws.onmessage do |msg|
+        if msg == "done"
+          ws.close
+        end
         @codec.decode(msg) do |event|
           decorate(event)
           puts "#{event}"
           output_queue << event
-          if msg.data == "done"
-            ws.close
-          end
         end
       end
 
